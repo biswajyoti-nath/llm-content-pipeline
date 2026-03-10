@@ -1,35 +1,107 @@
 """
-AI Content Pipeline
--------------------
-A multi-stage pipeline that converts raw founder interview transcripts
-into structured startup stories and extracts JSON data for CMS storage.
+AI Content Pipeline — Full Multi-Model Version
+-----------------------------------------------
+A 3-stage pipeline for automated startup story generation.
+
+Stage 1 — Discovery:    Tavily API searches for startup information
+Stage 2 — Structuring:  Gemini extracts and structures the raw research
+Stage 3 — Drafting:     Claude generates a publication-ready startup story
 
 Usage:
-    python pipeline.py --transcript examples/sample_transcript.txt
-    python pipeline.py --transcript examples/sample_transcript.txt --extract
+    python pipeline.py --query "Zepto grocery delivery India"
+    python pipeline.py --query "Zepto grocery delivery India" --save
+    python pipeline.py --transcript examples/sample_transcript.txt --save
 
 Requirements:
-    pip install anthropic
-    Set your API key: export ANTHROPIC_API_KEY=your_key_here
+    pip install anthropic google-genai tavily-python python-dotenv
+
+.env file:
+    ANTHROPIC_API_KEY=your_key_here
+    GEMINI_API_KEY=your_key_here
+    TAVILY_API_KEY=your_key_here
 """
 
 import anthropic
 import argparse
 import json
 import sys
+import os
 from pathlib import Path
 from dotenv import load_dotenv
+from google import genai
+from tavily import TavilyClient
 
-load_dotenv()  # Loads ANTHROPIC_API_KEY from .env file automatically
+load_dotenv()
 
 
 # ── Prompts ────────────────────────────────────────────────────────────────────
 
-STORY_SYSTEM_PROMPT = """You are a startup journalist writing for a professional startup media platform.
-Your writing is factual, specific, and free of generic motivational language.
-You never use phrases like 'disrupting the industry', 'passionate founder', 'game-changing', or 'revolutionary'."""
+GEMINI_STRUCTURING_PROMPT = """You are a structured data extraction system for a startup research pipeline.
 
-STORY_USER_PROMPT = """Convert the raw founder interview transcript below into a clean, structured startup story.
+You will receive raw search results about a startup or founder.
+Extract and structure the information into clean JSON.
+
+Rules:
+1. Use ONLY information explicitly present in the search results.
+2. If a field is missing or unclear, return null.
+3. Do NOT guess or infer values.
+4. Output ONLY valid JSON — no explanation, no markdown code blocks.
+
+Schema:
+{
+  "founder_name": "string or null",
+  "startup_name": "string or null",
+  "industry": "string or null",
+  "founding_year": "string or null",
+  "location": "string or null",
+  "problem_statement": "string or null",
+  "solution": "string or null",
+  "revenue": "string or null",
+  "funding": "string or null",
+  "traction": "string or null",
+  "key_facts": ["list of verified facts from search results"]
+}
+
+Raw search results:
+{search_results}
+"""
+
+CLAUDE_STORY_SYSTEM = """You are a startup journalist writing for a professional startup media platform.
+Your writing is factual, specific, and free of generic motivational language.
+Never use: 'disrupting the industry', 'passionate founder', 'game-changing', 'revolutionary', 'innovative solution'."""
+
+CLAUDE_STORY_PROMPT = """Convert the structured startup brief below into a clean, publication-ready startup story.
+
+Rules:
+1. Do NOT invent or hallucinate any facts.
+2. Use ONLY information present in the brief.
+3. If information is missing, write "Not mentioned".
+4. Professional journalistic tone — no cliches.
+
+Before writing, silently extract:
+- Founder name and background
+- Core problem and solution
+- Startup journey and timeline
+- Key facts and traction signals
+
+Output Structure:
+## Headline
+## Founder Background
+## Startup Journey
+## Problem & Solution
+## Key Insights
+## Startup Snapshot
+(Format: Founder Name | Startup Name | Year | Industry)
+
+Structured Brief:
+{brief}
+"""
+
+CLAUDE_TRANSCRIPT_SYSTEM = """You are a startup journalist writing for a professional startup media platform.
+Your writing is factual, specific, and free of generic motivational language.
+Never use: 'disrupting the industry', 'passionate founder', 'game-changing', 'revolutionary'."""
+
+CLAUDE_TRANSCRIPT_PROMPT = """Convert the raw founder interview transcript into a clean, structured startup story.
 
 Rules:
 1. Do NOT invent or hallucinate any facts.
@@ -55,86 +127,67 @@ Output Structure:
 (Format: Founder Name | Startup Name | Year | Industry)
 
 Transcript:
-{transcript}"""
-
-EXTRACTION_SYSTEM_PROMPT = """You are a structured data extraction system.
-You output only valid JSON. No explanation, no preamble, no markdown code blocks."""
-
-EXTRACTION_USER_PROMPT = """Read the startup story below and extract the following fields into valid JSON.
-
-Rules:
-1. Use ONLY information explicitly present in the text.
-2. If a field is missing, return null — do NOT guess or infer.
-3. Output ONLY valid JSON.
-
-Schema:
-{{
-  "founder_name": "string or null",
-  "startup_name": "string or null",
-  "industry": "string or null",
-  "revenue": "string or null",
-  "founding_year": "string or null",
-  "location": "string or null"
-}}
-
-Story:
-{story}"""
+{transcript}
+"""
 
 
-# ── Pipeline Functions ─────────────────────────────────────────────────────────
+# ── Stage 1: Discovery ─────────────────────────────────────────────────────────
 
-def load_transcript(filepath: str) -> str:
-    """Load transcript from a text file."""
-    path = Path(filepath)
-    if not path.exists():
-        print(f"Error: File not found — {filepath}")
-        sys.exit(1)
-    return path.read_text(encoding="utf-8")
+def discover(query: str) -> str:
+    """Stage 1: Search for startup information using Tavily."""
+    print(f"\n[Stage 1 — Discovery] Searching: '{query}'...")
 
+    client = TavilyClient(api_key=os.getenv("TAVILY_API_KEY"))
 
-def generate_story(client: anthropic.Anthropic, transcript: str) -> str:
-    """Stage 1: Convert transcript to structured startup story using Claude."""
-    print("\n[Stage 1] Generating story from transcript...")
-
-    message = client.messages.create(
-        model="claude-sonnet-4-20250514",
-        max_tokens=1500,
-        system=STORY_SYSTEM_PROMPT,
-        messages=[
-            {
-                "role": "user",
-                "content": STORY_USER_PROMPT.format(transcript=transcript)
-            }
-        ]
+    response = client.search(
+        query=query,
+        search_depth="advanced",
+        max_results=5,
+        include_answer=True
     )
 
-    story = message.content[0].text
-    print("[Stage 1] Done.\n")
-    return story
+    parts = []
+    if response.get("answer"):
+        parts.append(f"Summary: {response['answer']}\n")
+
+    for i, result in enumerate(response.get("results", []), 1):
+        parts.append(
+            f"Source {i}: {result.get('title', '')}\n"
+            f"URL: {result.get('url', '')}\n"
+            f"Content: {result.get('content', '')}\n"
+        )
+
+    raw_research = "\n---\n".join(parts)
+    print(f"[Stage 1] Done. Found {len(response.get('results', []))} sources.\n")
+    return raw_research
 
 
-def extract_data(client: anthropic.Anthropic, story: str) -> dict:
-    """Stage 2: Extract structured JSON data from the generated story."""
-    print("[Stage 2] Extracting structured data...")
+# ── Stage 2: Structuring ───────────────────────────────────────────────────────
 
-    message = client.messages.create(
-        model="claude-sonnet-4-20250514",
-        max_tokens=500,
-        system=EXTRACTION_SYSTEM_PROMPT,
-        messages=[
-            {
-                "role": "user",
-                "content": EXTRACTION_USER_PROMPT.format(story=story)
-            }
-        ]
+def structure(raw_research: str) -> dict:
+    """Stage 2: Extract structured data from raw research using Gemini."""
+    print("[Stage 2 — Structuring] Extracting structured data with Gemini...")
+
+    client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+
+    prompt = GEMINI_STRUCTURING_PROMPT.replace("{search_results}", raw_research)
+    response = client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=[prompt]
     )
 
-    raw = message.content[0].text.strip()
+    raw = response.text.strip()
+
+    if raw.startswith("```"):
+        raw = raw.split("```")[1]
+        if raw.startswith("json"):
+            raw = raw[4:]
+    raw = raw.strip()
 
     try:
         data = json.loads(raw)
     except json.JSONDecodeError:
-        print("Warning: Could not parse JSON response. Raw output:")
+        print("Warning: Gemini returned invalid JSON. Raw output:")
         print(raw)
         data = {}
 
@@ -142,52 +195,121 @@ def extract_data(client: anthropic.Anthropic, story: str) -> dict:
     return data
 
 
-def save_output(story: str, data: dict, output_dir: str = "output"):
-    """Save story and JSON to output files."""
+# ── Stage 3: Drafting ──────────────────────────────────────────────────────────
+
+def draft_from_brief(brief: dict) -> str:
+    """Stage 3a: Generate story from structured brief using Claude."""
+    print("[Stage 3 — Drafting] Generating story with Claude...")
+
+    client = anthropic.Anthropic()
+    brief_text = json.dumps(brief, indent=2)
+
+    message = client.messages.create(
+        model="claude-sonnet-4-20250514",
+        max_tokens=1500,
+        system=CLAUDE_STORY_SYSTEM,
+        messages=[
+            {
+                "role": "user",
+                "content": CLAUDE_STORY_PROMPT.replace("{brief}", brief_text)
+            }
+        ]
+    )
+
+    story = message.content[0].text
+    print("[Stage 3] Done.\n")
+    return story
+
+
+def draft_from_transcript(transcript: str) -> str:
+    """Stage 3b: Generate story directly from transcript using Claude."""
+    print("[Stage 3 — Drafting] Generating story from transcript with Claude...")
+
+    client = anthropic.Anthropic()
+
+    message = client.messages.create(
+        model="claude-sonnet-4-20250514",
+        max_tokens=1500,
+        system=CLAUDE_TRANSCRIPT_SYSTEM,
+        messages=[
+            {
+                "role": "user",
+                "content": CLAUDE_TRANSCRIPT_PROMPT.replace("{transcript}", transcript)
+            }
+        ]
+    )
+
+    story = message.content[0].text
+    print("[Stage 3] Done.\n")
+    return story
+
+
+# ── Output ─────────────────────────────────────────────────────────────────────
+
+def save_output(story: str, brief: dict = None, output_dir: str = "output"):
+    """Save story and structured brief to output files."""
     Path(output_dir).mkdir(exist_ok=True)
 
     story_path = Path(output_dir) / "story.md"
     story_path.write_text(story, encoding="utf-8")
     print(f"Story saved to: {story_path}")
 
-    if data:
-        json_path = Path(output_dir) / "extracted_data.json"
-        json_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
-        print(f"Extracted data saved to: {json_path}")
+    if brief:
+        json_path = Path(output_dir) / "structured_brief.json"
+        json_path.write_text(json.dumps(brief, indent=2), encoding="utf-8")
+        print(f"Structured brief saved to: {json_path}")
 
 
 # ── Main ───────────────────────────────────────────────────────────────────────
 
 def main():
-    parser = argparse.ArgumentParser(description="AI Content Pipeline — Transcript to Story")
-    parser.add_argument("--transcript", required=True, help="Path to transcript .txt file")
-    parser.add_argument("--extract", action="store_true", help="Also extract structured JSON data")
+    parser = argparse.ArgumentParser(
+        description="AI Content Pipeline — Multi-model startup story generator"
+    )
+
+    input_group = parser.add_mutually_exclusive_group(required=True)
+    input_group.add_argument("--query", help="Search query for startup discovery (full pipeline)")
+    input_group.add_argument("--transcript", help="Path to transcript .txt file (Stage 3 only)")
+
     parser.add_argument("--save", action="store_true", help="Save outputs to /output folder")
     args = parser.parse_args()
 
-    # Init client (reads ANTHROPIC_API_KEY from environment)
-    client = anthropic.Anthropic()
+    brief = {}
 
-    # Load transcript
-    transcript = load_transcript(args.transcript)
-    print(f"Loaded transcript: {args.transcript} ({len(transcript)} chars)")
+    if args.query:
+        print("=" * 60)
+        print("Running full 3-stage pipeline")
+        print("=" * 60)
 
-    # Stage 1: Generate story
-    story = generate_story(client, transcript)
+        raw_research = discover(args.query)
+        brief = structure(raw_research)
+
+        print("Structured Brief:")
+        print(json.dumps(brief, indent=2))
+        print()
+
+        story = draft_from_brief(brief)
+
+    elif args.transcript:
+        print("=" * 60)
+        print("Running transcript-only mode (Stage 3)")
+        print("=" * 60)
+
+        path = Path(args.transcript)
+        if not path.exists():
+            print(f"Error: File not found — {args.transcript}")
+            sys.exit(1)
+
+        transcript = path.read_text(encoding="utf-8")
+        print(f"Loaded transcript: {args.transcript} ({len(transcript)} chars)\n")
+        story = draft_from_transcript(transcript)
+
     print("=" * 60)
     print(story)
     print("=" * 60)
 
-    # Stage 2: Extract data (optional)
-    extracted = {}
-    if args.extract:
-        extracted = extract_data(client, story)
-        print("Extracted Data:")
-        print(json.dumps(extracted, indent=2))
-
-    # Save outputs (optional)
     if args.save:
-        save_output(story, extracted)
+        save_output(story, brief if args.query else None)
 
 
 if __name__ == "__main__":

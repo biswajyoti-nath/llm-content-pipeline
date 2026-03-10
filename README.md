@@ -1,141 +1,81 @@
-# AI Content Pipeline — Multi-Model LLM Workflow Design
+# llm-content-pipeline
 
-A practical AI workflow that automates startup story production using three specialized LLMs in sequence — cutting manual research and drafting time from several hours to under 30 minutes.
+A 3-stage multi-model AI pipeline that automates startup story generation — from web discovery to publication-ready article.
 
----
+## Pipeline Architecture
 
-## The Problem
+<img src="pipeline_architecture.png" alt="Pipeline Architecture" width="400"/>
 
-Content teams producing startup stories manually spend hours on:
-- Researching founders and funding activity across scattered sources
-- Structuring unorganized research into clean briefs
-- Drafting publication-ready articles from scratch
+Alternatively, feed a raw founder interview transcript directly into Stage 3.
 
-This pipeline automates all three stages using purpose-selected AI models.
+## Usage
 
----
-
-## Workflow Architecture
-
-```
-Perplexity AI  →  Gemini  →  Claude
-  Discovery       Structuring   Drafting
+**Full pipeline (query → story):**
+```bash
+python pipeline.py --query "Zepto grocery delivery India" --save
 ```
 
-### Stage 1 — Discovery (Perplexity AI)
-- Scans startup news, Product Hunt, funding announcements, LinkedIn
-- Returns founder names, descriptions, funding info, and verified source links
-- Output: 5–10 story candidates per day with cited references
-
-### Stage 2 — Structuring (Gemini)
-- Analyses unstructured research from Stage 1
-- Extracts: founder background, founding year, problem statement, target market, traction signals
-- Output: Clean JSON or markdown brief with all story elements
-
-### Stage 3 — Drafting (Claude)
-- Takes structured brief as input
-- Generates full article: Headline / Founder Background / Startup Journey / Problem-Solution / Key Insights / Snapshot
-- Output: Publication-ready draft requiring only minor editorial review
-
----
-
-## Prompts
-
-### Transcript-to-Story Prompt (Task 1)
-
-```
-Role: Startup journalist writing for a startup media platform.
-
-Task: Convert the raw founder interview transcript into a clean, structured startup story.
-
-Rules:
-1. Do NOT invent or hallucinate any facts.
-2. Use only information explicitly present in the transcript.
-3. If information is missing, write "Not mentioned".
-4. Maintain a professional journalistic tone.
-
-Output Structure:
-Headline | Founder Background | Startup Journey | Problem & Solution | Key Insights | Startup Snapshot
+**Transcript only (transcript → story):**
+```bash
+python pipeline.py --transcript examples/sample_transcript.txt --save
 ```
 
-**Why this structure works:**
-- Role prompting guides narrative tone toward media publication
-- Hallucination control prevents invented facts
-- Predefined sections ensure consistent, publishable output
-- Missing info rule forces honesty over guesswork
+## Setup
 
----
-
-### Data Extraction Prompt (Task 2)
-
-```
-You are a structured data extraction system.
-
-Read the startup story below and extract the following fields:
-- Founder Name
-- Startup Name
-- Industry
-- Revenue (if mentioned)
-
-Rules:
-1. Use only information explicitly present in the text.
-2. If a field is missing, return null.
-3. Do not guess or infer values.
-4. Output ONLY valid JSON.
-
-Startup Story: [INSERT TEXT HERE]
+**1. Install dependencies:**
+```bash
+pip install -r requirements.txt
 ```
 
-**Output Schema:**
-```json
-{
-  "founder_name": "string or null",
-  "startup_name": "string or null",
-  "industry": "string or null",
-  "revenue": "string or null"
-}
+**2. Create a `.env` file:**
+```
+ANTHROPIC_API_KEY=your_key_here
+GEMINI_API_KEY=your_key_here
+TAVILY_API_KEY=your_key_here
 ```
 
----
+**3. Get API keys:**
+- Anthropic: platform.anthropic.com
+- Gemini: aistudio.google.com
+- Tavily: tavily.com (1000 free searches/month)
 
-## Model Comparison — Claude vs Gemini
+## Output
 
-| Dimension | Claude | Gemini |
+Running with `--save` creates an `/output` folder with:
+- `story.md` — formatted startup article
+- `structured_brief.json` — extracted startup data (query mode only)
+
+## Repo Structure
+
+```
+llm-content-pipeline/
+├── pipeline.py                        ← main script
+├── requirements.txt
+├── .gitignore
+├── prompts/
+│   ├── transcript_to_story.md         ← prompt for transcript mode
+│   ├── data_extraction.md             ← prompt for JSON extraction
+│   └── hallucination_control_rules.md ← prompt engineering reference
+└── examples/
+    ├── sample_transcript.txt          ← sample founder interview
+    ├── sample_output_story.md         ← example story output
+    └── sample_extraction_output.json  ← example JSON output
+```
+
+## Model Roles
+
+| Stage | Model | Task |
 |---|---|---|
-| Prompt engineering depth | Strong — internal reasoning, negative constraints | Simpler — fewer constraints |
-| Task execution | Optimises for robustness | Executes end-to-end |
-| Ecosystem grounding | Requires explicit instruction | Includes context naturally |
-| Best suited for | Scalable workflow design | Practical content generation |
+| 1 — Discovery | Tavily | Web search for startup info |
+| 2 — Structuring | Gemini 1.5 Flash | Extract structured JSON from research |
+| 3 — Drafting | Claude Sonnet | Generate publication-ready story |
 
-**Key insight:** Claude and Gemini have complementary strengths. Claude builds better prompt frameworks. Gemini executes more reliably out of the box. The best workflows use both strategically.
+## Why multi-model?
 
----
-
-## Why AI Stories Sound Generic (And How to Fix It)
-
-LLMs generate text based on statistical probability, not lived experience. Training on thousands of startup articles embeds repeated patterns — *"disrupting the industry"*, *"passionate founder"*.
-
-**Prompt-level fixes:**
-- Assign a precise role — not just "writer" but "startup journalist"
-- Ban specific clichés explicitly in the prompt
-- Separate extraction and writing into two steps
-- Require concrete sections: problem trigger, early obstacle, traction signal
-
-**System-level fixes:**
-- **RAG:** Ground the model in real interview transcripts and founder data
-- **Few-shot prompting:** Provide examples of high-quality stories
-- **Human-in-the-loop:** AI drafts, editor refines tone and accuracy
-
----
-
-## Tech Stack
-
-- Perplexity AI — web-grounded research
-- Google Gemini — structured extraction
-- Anthropic Claude — narrative generation
-- JSON — data schema for CMS integration
-
----
+Each model is used where it performs best:
+- **Tavily** — purpose-built for AI search, returns clean cited results
+- **Gemini** — reliable structured extraction, handles JSON formatting well
+- **Claude** — strongest narrative generation with hallucination controls
 
 ## Author
 
