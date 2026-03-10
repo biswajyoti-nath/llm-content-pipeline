@@ -18,6 +18,9 @@ import argparse
 import json
 import sys
 from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv()  # Loads ANTHROPIC_API_KEY from .env file automatically
 
 
 # ── Prompts ────────────────────────────────────────────────────────────────────
