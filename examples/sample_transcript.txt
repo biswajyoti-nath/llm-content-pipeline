@@ -1,0 +1,25 @@
+Sample Founder Interview Transcript — QuickScale
+
+Interviewer: Thanks for joining us. Can you tell us how QuickScale came about?
+
+Founder: Sure. I was a backend lead at Swiggy back in 2023. Every time there was a big sale or a cricket match, traffic would spike and we'd be scrambling to scale infrastructure manually. It was frustrating and honestly kind of embarrassing for a company our size.
+
+Interviewer: So that frustration led to the idea?
+
+Founder: Yeah exactly. I started building a small automation script on weekends just to solve my own problem. Nothing fancy at first. Then I showed it to a couple of developer friends at other companies and they were like — wait, we have this problem too. That was the signal.
+
+Interviewer: When did it become an actual company?
+
+Founder: We registered in January 2024. The focus from day one was SaaS companies — helping them automate cloud scaling so their engineers don't have to babysit infrastructure during traffic spikes.
+
+Interviewer: What's been the hardest part?
+
+Founder: Pricing. DevTools is really hard to price. You can't charge too much because developers are cost-sensitive, but you also need to justify the value to finance teams. We got it wrong twice before landing on something that works.
+
+Interviewer: Any advice for founders?
+
+Founder: Talk to users before you write a single line of code. And solve a problem you've actually lived — not one you read about in a blog post.
+
+Interviewer: Thanks Rohan, really appreciate it.
+
+Founder: Thanks for having me.
