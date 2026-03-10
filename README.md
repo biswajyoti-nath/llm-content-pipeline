@@ -141,4 +141,4 @@ LLMs generate text based on statistical probability, not lived experience. Train
 
 **Biswajyoti Nath**
 B.Tech Computer Science, Barak Valley Engineering College
-[LinkedIn](https://linkedin.com/in/biswajyoti-nath-984404323) | [Portfolio](#)
+[LinkedIn](https://linkedin.com/in/biswajyoti-nath-984404323) | [Portfolio](https://biswajyoti-nath.github.io)
