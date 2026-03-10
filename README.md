@@ -1,4 +1,4 @@
-# llm-content-pipeline
+# startup-llm-content-pipeline
 
 A 3-stage multi-model AI pipeline that automates startup story generation — from web discovery to publication-ready article.
 
