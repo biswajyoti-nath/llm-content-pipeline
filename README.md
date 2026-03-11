@@ -77,8 +77,10 @@ Each model is used where it performs best:
 - **Gemini** — reliable structured extraction, handles JSON formatting well
 - **Claude** — strongest narrative generation with hallucination controls
 
-## Author
+## Roadmap
+- [ ] Model-agnostic support — let users configure their own API keys and choose models
 
+## Author
 **Biswajyoti Nath**
 B.Tech Computer Science, Barak Valley Engineering College
 [LinkedIn](https://linkedin.com/in/biswajyoti-nath-984404323) | [Portfolio](https://biswajyoti-nath.github.io)
