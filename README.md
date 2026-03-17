@@ -2,6 +2,22 @@
 
 A 3-stage multi-model AI pipeline that automates startup story generation — from web discovery to publication-ready article.
 
+## Problem
+
+Startup stories and founder narratives are scattered across the web and interviews. 
+Manually collecting, structuring, and converting them into publishable content is time-consuming and inconsistent.
+
+This pipeline automates:
+- discovery of startup information
+- structuring into machine-readable format
+- generation of coherent, publication-ready stories
+
+## Design Decisions
+
+- Multi-model approach avoids over-reliance on a single LLM
+- Separation of stages improves modularity and debugging
+- Structured JSON intermediate reduces hallucination in final output
+  
 ## Pipeline Architecture
 
 <img src="pipeline_architecture.png" alt="Pipeline Architecture" width="400"/>
@@ -77,7 +93,28 @@ Each model is used where it performs best:
 - **Gemini** — reliable structured extraction, handles JSON formatting well
 - **Claude** — strongest narrative generation with hallucination controls
 
-## Roadmap
+## Results
+
+### Example Input
+Query: "Zepto grocery delivery India"
+
+### Output
+- Generated structured JSON with startup details
+- Final article written in narrative format
+
+### Observations
+- Claude produced high-quality storytelling with good coherence
+- Gemini provided consistent structured extraction
+- Tavily ensured up-to-date factual grounding
+
+### Sample Output
+See: `examples/sample_output_story.md`
+
+## Future Improvements
+
+- Add caching layer to reduce API calls
+- Implement retry mechanism for API failures
+- Add evaluation metrics for output quality
 - [ ] Model-agnostic support — let users configure their own API keys and choose models
 
 ## Author
